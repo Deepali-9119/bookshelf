@@ -1,29 +1,37 @@
 /**
  * book.js — Book detail page
+ * High-performance rendering with immediate cover and placeholder fallback.
  */
-import { fetchBook, getCoverUrl, getReadableUrl, getDownloadUrl } from './api.js';
+import { fetchBook, getCoverUrl, getReadableUrl, getDownloadUrl, handleCoverError, escapeHtml } from './api.js';
 import { initNavbar } from './navbar.js';
+
+window.handleCoverError = handleCoverError;
 
 initNavbar();
 
-document.getElementById('bookContent').innerHTML =
-  '<div class="loading-state"><div class="spinner"></div></div>';
+const bookContent = document.getElementById('bookContent');
+if (bookContent) {
+  bookContent.innerHTML = '<div class="loading-state"><div class="spinner"></div></div>';
+}
 
 const id = new URLSearchParams(location.search).get('id');
 
 if (!id) {
-  document.getElementById('bookContent').innerHTML =
-    '<p class="error-state">No book ID provided. <a href="index.html">Go home</a></p>';
+  if (bookContent) {
+    bookContent.innerHTML =
+      '<p class="error-state">No book ID provided. <a href="index.html">← Go home</a></p>';
+  }
 } else {
   loadBookDetail(id);
 }
 
 async function loadBookDetail(bookId) {
   try {
-    const book     = await fetchBook(bookId);
+    const book = await fetchBook(bookId);
+    const safeTitle = escapeHtml(book.title);
     document.title = `${book.title} — Bookshelf`;
 
-    const coverUrl = await getCoverUrl(book, 'L');
+    const coverUrl = getCoverUrl(book, 'L') || getCoverUrl(book, 'M');
     const readUrl  = getReadableUrl(book.formats);
     const dlUrl    = getDownloadUrl(book.formats);
 
@@ -31,42 +39,63 @@ async function loadBookDetail(bookId) {
       const years = a.birth_year ? ` (${a.birth_year}–${a.death_year ?? ''})` : '';
       return `${a.name}${years}`;
     }).join(', ') ?? 'Unknown Author';
+    const safeAuthors = escapeHtml(authors);
 
     const subjects = book.subjects?.slice(0, 12) ?? [];
     const subjectBadges = subjects.map(s =>
-      `<a href="browse.html?search=${encodeURIComponent(s)}" class="badge">${s}</a>`
+      `<a href="browse.html?search=${encodeURIComponent(s)}" class="badge">${escapeHtml(s)}</a>`
     ).join('');
 
-    const formatItems = Object.entries(book.formats)
+    const formats = book.formats || {};
+    const formatItems = Object.entries(formats)
       .filter(([mime]) => !mime.includes('zip') && !mime.includes('rdf'))
       .map(([mime, url]) => `
         <div class="format-item">
-          <span class="format-item__name">${mimeLabel(mime)}</span>
-          <a href="${url}" target="_blank" rel="noopener" class="btn btn--sm btn--secondary">Download</a>
+          <span class="format-item__name">${escapeHtml(mimeLabel(mime))}</span>
+          <a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="btn btn--sm btn--secondary">Download</a>
         </div>`).join('');
 
     const readBtn = readUrl
       ? `<a href="reader.html?id=${bookId}" class="btn btn--primary">📖 Read Now</a>` : '';
     const dlBtn = dlUrl
-      ? `<a href="${dlUrl}" target="_blank" rel="noopener" class="btn btn--secondary">⬇ Download</a>` : '';
+      ? `<a href="${escapeHtml(dlUrl)}" target="_blank" rel="noopener" class="btn btn--secondary">⬇ Download</a>` : '';
 
-    document.getElementById('bookContent').innerHTML = `
+    const downloads = typeof book.download_count === 'number'
+      ? book.download_count.toLocaleString()
+      : (book.download_count || '—');
+
+    bookContent.innerHTML = `
       <div class="book-detail">
         <div class="book-cover-wrap">
-          <img class="book-cover" src="${coverUrl}" alt="${book.title}" loading="eager">
+          <div class="book-cover-placeholder" aria-hidden="true">
+            <div class="placeholder-icon">📖</div>
+            <div class="placeholder-title">${safeTitle}</div>
+            <div class="placeholder-author">${safeAuthors}</div>
+          </div>
+          ${coverUrl ? `
+            <img
+              class="book-cover"
+              src="${coverUrl}"
+              alt="${safeTitle}"
+              loading="eager"
+              decoding="async"
+              onload="this.classList.add('loaded')"
+              onerror="window.handleCoverError(this, ${book.id})"
+            >
+          ` : ''}
         </div>
         <div class="book-info">
-          <h1 class="book-info__title">${book.title}</h1>
-          <p class="book-info__author">by ${authors}</p>
+          <h1 class="book-info__title">${safeTitle}</h1>
+          <p class="book-info__author">by ${safeAuthors}</p>
           <div class="book-info__meta">
-            ${book.languages?.map(l => `<span class="badge">🌐 ${l.toUpperCase()}</span>`).join('') ?? ''}
+            ${book.languages?.map(l => `<span class="badge">🌐 ${escapeHtml(l.toUpperCase())}</span>`).join('') ?? ''}
             ${book.copyright === false ? '<span class="badge" style="color:var(--accent)">✓ Public Domain</span>' : ''}
-            <span class="badge">⬇ ${book.download_count?.toLocaleString()} downloads</span>
+            <span class="badge">⬇ ${downloads} downloads</span>
           </div>
           <div class="book-info__actions">${readBtn}${dlBtn}</div>
           <div class="book-info__desc">
             ${book.subjects?.length
-              ? `<p>Covers: ${book.subjects.slice(0, 5).join(', ')}${book.subjects.length > 5 ? '…' : ''}.</p>`
+              ? `<p>Covers: ${escapeHtml(book.subjects.slice(0, 5).join(', '))}${book.subjects.length > 5 ? '…' : ''}.</p>`
               : '<p>A classic public-domain work from Project Gutenberg.</p>'}
           </div>
           ${subjects.length ? `
@@ -82,9 +111,11 @@ async function loadBookDetail(bookId) {
         </div>
       </div>`;
   } catch (err) {
-    document.getElementById('bookContent').innerHTML =
-      `<p class="error-state">Could not load book details.<br><small>${err.message}</small><br>
-       <a href="index.html" class="btn btn--secondary btn--sm" style="margin-top:1rem">← Go home</a></p>`;
+    if (bookContent) {
+      bookContent.innerHTML =
+        `<p class="error-state">Could not load book details.<br><small>${escapeHtml(err.message)}</small><br>
+         <a href="index.html" class="btn btn--secondary btn--sm" style="margin-top:1rem">← Go home</a></p>`;
+    }
   }
 }
 

@@ -198,11 +198,32 @@ function stripGutenbergBoilerplate(text) {
   return text;
 }
 
-function getCorsUrl(url) {
-  if (url.includes('gutenberg.org')) {
-    return `https://corsproxy.io/?${encodeURIComponent(url)}`;
+async function fetchBookTextWithFallback(targetUrl) {
+  const endpoints = [
+    `/api/read?url=${encodeURIComponent(targetUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+    `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+    targetUrl
+  ];
+
+  let lastError = null;
+  for (const endpoint of endpoints) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const res = await fetch(endpoint, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        return await res.text();
+      }
+      lastError = new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      lastError = e;
+    }
   }
-  return url;
+
+  throw lastError || new Error('All content proxies failed to fetch book.');
 }
 
 // ── Main load ─────────────────────────────────────────────────────────────────
@@ -224,14 +245,11 @@ async function loadReader(id) {
     const readUrl = getReadableUrl(book.formats);
     if (!readUrl) throw new Error('No readable format available for this book.');
 
-    const res = await fetch(getCorsUrl(readUrl));
-    if (!res.ok) throw new Error(`Could not fetch book content (HTTP ${res.status})`);
-
     const isHTML = book.formats['text/html'] === readUrl || readUrl.includes('.htm');
+    const rawText = await fetchBookTextWithFallback(readUrl);
 
     if (isHTML) {
-      const html = await res.text();
-      const doc  = new DOMParser().parseFromString(html, 'text/html');
+      const doc = new DOMParser().parseFromString(rawText, 'text/html');
       doc.querySelectorAll('script, style, link, meta').forEach(el => el.remove());
       readerContent.innerHTML = doc.body?.innerHTML ?? '';
       // Try to extract chapter headings from injected HTML
