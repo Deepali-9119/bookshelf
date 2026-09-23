@@ -1,6 +1,6 @@
 /**
  * browse.js — Browse & search page
- * High-performance synchronous card rendering with independent cover loading.
+ * High-performance synchronous card rendering with resilient AbortController lifecycle.
  */
 import { fetchBooks, getCoverUrl, handleCoverError, escapeHtml, GENRES } from './api.js';
 import { initNavbar } from './navbar.js';
@@ -15,13 +15,18 @@ let topic    = params.get('topic')  || '';
 let page     = parseInt(params.get('page') || '1', 10);
 let sort     = params.get('sort')   || 'popular';
 
+// ── AbortController & Request Tracking ────────────────────────────────────────
+let currentAbortController = null;
+let currentRequestId = 0;
+
 // ── Navbar ────────────────────────────────────────────────────────────────────
 initNavbar({
   onSearch: q => {
-    search = q;
+    search = q.trim();
     topic = '';
     page = 1;
-    pushState({ search, topic, page });
+    pushState({ search, topic: '', page: 1 });
+    updateActiveSidebar('');
     loadBooks();
   }
 });
@@ -42,21 +47,59 @@ const allLink = sidebar?.querySelector('a.sidebar__item');
 const genreWrap = document.createElement('div');
 genreWrap.className = 'sidebar-genres-wrap';
 
+// Setup "All Books" link
 if (allLink) {
-  allLink.classList.toggle('active', !topic);
+  allLink.setAttribute('data-topic', '');
+  allLink.classList.toggle('active', !topic && !search);
+  allLink.addEventListener('click', e => {
+    e.preventDefault();
+    if (!topic && !search && page === 1) return;
+    topic = '';
+    search = '';
+    page = 1;
+    pushState({ topic: '', search: '', page: 1 });
+    updateActiveSidebar('');
+    loadBooks();
+  });
   genreWrap.appendChild(allLink);
 }
 
+// Setup genre links with SPA navigation
 GENRES.forEach(({ label, topic: tp }) => {
   const a = document.createElement('a');
   a.className = 'sidebar__item' + (topic === tp ? ' active' : '');
+  a.setAttribute('data-topic', tp);
   a.href = `browse.html?topic=${encodeURIComponent(tp)}`;
   a.textContent = label;
+
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    if (topic === tp && !search && page === 1) return;
+    topic = tp;
+    search = '';
+    page = 1;
+    pushState({ topic: tp, search: '', page: 1 });
+    updateActiveSidebar(tp);
+    loadBooks();
+  });
+
   genreWrap.appendChild(a);
 });
 
 if (sidebarGenres) {
   sidebarGenres.replaceWith(genreWrap);
+}
+
+function updateActiveSidebar(selectedTopic) {
+  const items = document.querySelectorAll('.sidebar__item');
+  items.forEach(el => {
+    const itemTopic = el.getAttribute('data-topic');
+    if (!selectedTopic) {
+      el.classList.toggle('active', itemTopic === '');
+    } else {
+      el.classList.toggle('active', itemTopic === selectedTopic);
+    }
+  });
 }
 
 // ── Sort ──────────────────────────────────────────────────────────────────────
@@ -66,7 +109,7 @@ if (sortSelect) {
   sortSelect.addEventListener('change', () => {
     sort = sortSelect.value;
     page = 1;
-    pushState({ sort, page });
+    pushState({ sort, page: 1 });
     loadBooks();
   });
 }
@@ -74,7 +117,14 @@ if (sortSelect) {
 // ── URL State Helper ──────────────────────────────────────────────────────────
 function pushState(overrides = {}) {
   const p = new URLSearchParams({ search, topic, page, sort, ...overrides });
-  history.pushState({}, '', `?${p}`);
+  // Clean up empty params
+  if (!p.get('search')) p.delete('search');
+  if (!p.get('topic')) p.delete('topic');
+  if (p.get('page') === '1') p.delete('page');
+  if (p.get('sort') === 'popular') p.delete('sort');
+
+  const queryString = p.toString() ? `?${p.toString()}` : 'browse.html';
+  history.pushState({ search, topic, page, sort, ...overrides }, '', queryString);
 }
 
 // ── Instant Synchronous Book Card Builder ─────────────────────────────────────
@@ -155,18 +205,29 @@ function renderPagination(data) {
   pagination.append(prev, cur, next);
 }
 
-// ── Main Load ─────────────────────────────────────────────────────────────────
+// ── Main Load with Proper AbortController Lifecycle ───────────────────────────
 const browseGrid   = document.getElementById('browseGrid');
 const resultsTitle = document.getElementById('resultsTitle');
 const resultsCount = document.getElementById('resultsCount');
 
 async function loadBooks() {
+  // Cancel previous in-flight request if user switched genres or searched
+  if (currentAbortController) {
+    currentAbortController.abort();
+  }
+
+  const controller = new AbortController();
+  currentAbortController = controller;
+  const requestId = ++currentRequestId;
+
+  // Show loading spinner
   if (browseGrid) {
     browseGrid.innerHTML = '<div class="loading-state"><div class="spinner"></div></div>';
   }
   const pagination = document.getElementById('pagination');
   if (pagination) pagination.innerHTML = '';
 
+  // Update header text immediately
   if (search) {
     if (resultsTitle) resultsTitle.textContent = `Results for "${search}"`;
   } else if (topic) {
@@ -175,9 +236,22 @@ async function loadBooks() {
   } else {
     if (resultsTitle) resultsTitle.textContent = 'All Books';
   }
+  if (resultsCount) resultsCount.textContent = 'Loading…';
 
   try {
-    const data = await fetchBooks({ search, topic, page, sort });
+    const data = await fetchBooks({
+      search,
+      topic,
+      page,
+      sort,
+      signal: controller.signal
+    });
+
+    // Check if this request is still the active one
+    if (requestId !== currentRequestId || controller.signal.aborted) {
+      return; // A newer request has started; discard obsolete response
+    }
+
     if (resultsCount) {
       resultsCount.textContent = `${data.count ? data.count.toLocaleString() : '0'} books`;
     }
@@ -185,7 +259,9 @@ async function loadBooks() {
     const results = data.results || [];
     if (!results.length) {
       if (browseGrid) {
-        browseGrid.innerHTML = '<p class="empty-state">No books found. Try a different search.</p>';
+        browseGrid.innerHTML = topic
+          ? `<p class="empty-state">No books found for this genre. Try another category.</p>`
+          : `<p class="empty-state">No books found. Try a different search.</p>`;
       }
       return;
     }
@@ -202,20 +278,37 @@ async function loadBooks() {
     renderPagination(data);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (err) {
-    if (browseGrid) {
-      browseGrid.innerHTML = `<p class="error-state">Failed to load books.<br><small>${escapeHtml(err.message)}</small></p>`;
+    // CRITICAL: Silently ignore if request was intentionally aborted due to genre switching
+    if (err.name === 'AbortError' || controller.signal.aborted || requestId !== currentRequestId) {
+      return;
+    }
+
+    // Only display error for the CURRENT genuine failure
+    if (browseGrid && requestId === currentRequestId) {
+      if (resultsCount) resultsCount.textContent = 'Error';
+      browseGrid.innerHTML = `
+        <div class="error-state">
+          <p style="font-size:2rem;margin-bottom:.5rem">⚠️</p>
+          <p><strong>Failed to load books.</strong></p>
+          <p><small>${escapeHtml(err.message)}</small></p>
+          <button onclick="window.location.reload()" class="btn btn--secondary btn--sm" style="margin-top:1rem">↺ Try Again</button>
+        </div>`;
     }
   }
 }
 
-// Listen for browser navigation (back / forward)
+// ── Handle Browser Back / Forward ─────────────────────────────────────────────
 window.addEventListener('popstate', () => {
   const p = new URLSearchParams(location.search);
   search = p.get('search') || '';
   topic  = p.get('topic') || '';
   page   = parseInt(p.get('page') || '1', 10);
   sort   = p.get('sort') || 'popular';
+
+  updateActiveSidebar(topic);
+  if (sortSelect) sortSelect.value = sort;
   loadBooks();
 });
 
+// Initial load
 loadBooks();

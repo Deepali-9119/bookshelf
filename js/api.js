@@ -1,11 +1,9 @@
 /**
  * api.js — Gutendex + Cover layer + Shared Utilities
- * Optimized for instant rendering and high performance.
+ * Optimized for instant rendering, high performance, and resilient fetch/abort lifecycle.
  */
 
 const GUTENDEX = 'https://gutendex.com/books';
-const OL_SEARCH = 'https://openlibrary.org/search.json';
-const OL_COVERS = 'https://covers.openlibrary.org/b/id';
 
 const CACHE_PREFIX = 'bs_cache_';
 const COVER_CACHE_PREFIX = 'bs_cover_v2_';
@@ -38,29 +36,62 @@ function cacheSet(key, data) {
   try {
     sessionStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, ts: Date.now() }));
   } catch {
-    // If storage full, clear old cache entries
     try { sessionStorage.clear(); } catch {}
   }
 }
 
-// ── Core Fetch with Timeout ───────────────────────────────────────────────────
-async function fetchJSON(url, timeoutMs = 10000) {
+// ── Resilient Core Fetch with External Signal & Timeout ───────────────────────
+async function fetchJSON(url, { signal = null, timeoutMs = 35000 } = {}) {
   const cached = cacheGet(url);
   if (cached) return cached;
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  if (signal?.aborted) {
+    throw new DOMException('Aborted', 'AbortError');
+  }
+
+  const internalController = new AbortController();
+  let timedOut = false;
+
+  const timer = setTimeout(() => {
+    timedOut = true;
+    internalController.abort();
+  }, timeoutMs);
+
+  function handleExternalAbort() {
+    clearTimeout(timer);
+    internalController.abort();
+  }
+
+  if (signal) {
+    signal.addEventListener('abort', handleExternalAbort, { once: true });
+  }
 
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { signal: internalController.signal });
     clearTimeout(timer);
-    if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${url}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status} fetching catalog`);
     const data = await res.json();
     cacheSet(url, data);
     return data;
   } catch (err) {
     clearTimeout(timer);
+
+    // If caller explicitly aborted this request (e.g. user selected another genre)
+    if (signal?.aborted) {
+      throw new DOMException('Aborted', 'AbortError');
+    }
+
+    // If internal timeout fired
+    if (timedOut) {
+      throw new Error('Catalog request timed out. Please try again.');
+    }
+
     throw err;
+  } finally {
+    clearTimeout(timer);
+    if (signal) {
+      signal.removeEventListener('abort', handleExternalAbort);
+    }
   }
 }
 
@@ -76,27 +107,39 @@ export function escapeHtml(str) {
 }
 
 // ── Gutendex API ──────────────────────────────────────────────────────────────
-export async function fetchBooks({ page = 1, search = '', topic = '', sort = 'popular' } = {}) {
+export async function fetchBooks({ page = 1, search = '', topic = '', sort = 'popular', signal = null } = {}) {
   const p = new URLSearchParams({ page });
   if (search) p.set('search', search);
   if (topic)  p.set('topic',  topic);
-  if (sort)   p.set('sort',   sort);
-  return fetchJSON(`${GUTENDEX}?${p}`);
+  if (sort && sort !== 'popular') p.set('sort', sort);
+
+  const url = `${GUTENDEX}?${p}`;
+
+  try {
+    return await fetchJSON(url, { signal, timeoutMs: (topic && !search) ? 8000 : 25000 });
+  } catch (err) {
+    // If request was aborted/cancelled by user navigation, re-throw as AbortError
+    if (signal?.aborted || err.name === 'AbortError') {
+      throw err;
+    }
+
+    // Fallback strategy: if Gutendex topic query times out or fails on server side,
+    // fallback to searching by keyword which uses Gutendex's indexed search engine
+    if (topic && !search) {
+      const fallbackParams = new URLSearchParams({ page, search: topic });
+      if (sort && sort !== 'popular') fallbackParams.set('sort', sort);
+      return await fetchJSON(`${GUTENDEX}?${fallbackParams}`, { signal, timeoutMs: 25000 });
+    }
+
+    throw err;
+  }
 }
 
-export async function fetchBook(id) {
-  return fetchJSON(`${GUTENDEX}/${id}`);
+export async function fetchBook(id, { signal = null } = {}) {
+  return fetchJSON(`${GUTENDEX}/${id}`, { signal, timeoutMs: 25000 });
 }
 
 // ── High-Performance Cover Resolution ─────────────────────────────────────────
-
-/**
- * Synchronously retrieves the best cover URL for a book.
- * 1. Checks memory cache
- * 2. Checks localStorage cache
- * 3. Uses Gutendex formats['image/jpeg'] directly (fastest, no extra network request!)
- * 4. Uses Project Gutenberg's canonical cover image CDN pattern
- */
 export function getCoverUrl(book, size = 'M') {
   if (!book || !book.id) return null;
   const cacheKey = `${book.id}_${size}`;
@@ -136,21 +179,15 @@ export function getCoverUrl(book, size = 'M') {
   return null;
 }
 
-/**
- * Handles cover image error gracefully.
- * Hides the broken image element so the clean placeholder displays seamlessly.
- */
-export function handleCoverError(imgElement, bookId, bookTitle = '') {
+export function handleCoverError(imgElement, bookId) {
   if (!imgElement) return;
 
-  // Mark failed in memory and storage so we don't hammer the failing URL
   if (bookId) {
     const cacheKey = `${bookId}_M`;
     failedCovers.add(cacheKey);
     coverCache.delete(cacheKey);
   }
 
-  // Hide the img element so only the elegant CSS placeholder remains visible
   imgElement.style.display = 'none';
 }
 
