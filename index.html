@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bookshelf — Read Free Classic Books Online</title>
+  <meta name="description" content="Read 70,000+ free public-domain books online. Search, browse by genre, and enjoy a distraction-free reading experience.">
+  <meta property="og:title" content="Bookshelf — Read Free Classic Books Online">
+  <meta property="og:description" content="Read 70,000+ free public-domain books. No sign-up, no limits.">
+  <meta property="og:type" content="website">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://gutendex.com">
+  <link rel="preconnect" href="https://openlibrary.org">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/home.css">
+  <!-- Prevent theme flash: apply saved theme before first paint -->
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('bs_theme')||'light'}catch(e){}</script>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="container navbar__inner">
+    <a href="index.html" class="navbar__logo">
+      <img src="assets/logo.svg" alt="Bookshelf logo">
+      Bookshelf
+    </a>
+    <form class="navbar__search" id="navSearchForm">
+      <input type="search" id="navSearch" placeholder="Search books, authors…" autocomplete="off">
+      <button type="submit" class="btn btn--primary btn--sm">Search</button>
+    </form>
+    <div class="navbar__links">
+      <a href="browse.html">Browse</a>
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙 Dark</button>
+    </div>
+    <!-- Hamburger (mobile only) -->
+    <button class="navbar__hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <!-- Mobile drawer -->
+  <div class="navbar__drawer" id="navDrawer">
+    <form class="navbar__drawer-search" id="drawerSearchForm">
+      <input type="search" id="drawerSearch" placeholder="Search books, authors…" autocomplete="off">
+      <button type="submit" class="btn btn--primary">Search</button>
+    </form>
+    <div class="navbar__drawer-links">
+      <a href="browse.html">📚 Browse</a>
+      <button class="theme-toggle" id="drawerTheme">🌙 Dark</button>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <h1 class="hero__title">Read <span>Classic Books</span><br>For Free, Forever</h1>
+    <p class="hero__subtitle">Explore 70,000+ public-domain masterpieces — no sign-up, no subscription, no limits.</p>
+    <form class="hero__search" id="heroSearchForm">
+      <input type="search" id="heroSearch" placeholder="Try &quot;Sherlock Holmes&quot; or &quot;Jane Austen&quot;…" autocomplete="off">
+      <button type="submit" class="btn btn--primary">Search 📚</button>
+    </form>
+    <p class="hero__stats" id="heroStats">Powered by Project Gutenberg &amp; Open Library</p>
+  </div>
+</section>
+
+<!-- Genre strip -->
+<div class="container">
+  <div class="genre-strip" id="genreStrip"></div>
+</div>
+
+<!-- Trending section -->
+<main class="container">
+  <section class="section">
+    <div class="section__header">
+      <h2>🔥 Most Popular</h2>
+      <a href="browse.html" class="btn btn--secondary btn--sm">View All →</a>
+    </div>
+    <div class="book-grid" id="trendingGrid">
+      <!-- skeleton placeholders -->
+      <div class="book-card" style="pointer-events:none" aria-hidden="true">
+        <div class="book-card__cover-wrap"><div class="skeleton" style="position:absolute;inset:0"></div></div>
+        <div class="book-card__body"><div class="skeleton" style="height:14px;margin-bottom:6px"></div><div class="skeleton" style="height:10px;width:60%"></div></div>
+      </div>
+      <div class="book-card" style="pointer-events:none" aria-hidden="true">
+        <div class="book-card__cover-wrap"><div class="skeleton" style="position:absolute;inset:0"></div></div>
+        <div class="book-card__body"><div class="skeleton" style="height:14px;margin-bottom:6px"></div><div class="skeleton" style="height:10px;width:60%"></div></div>
+      </div>
+      <div class="book-card" style="pointer-events:none" aria-hidden="true">
+        <div class="book-card__cover-wrap"><div class="skeleton" style="position:absolute;inset:0"></div></div>
+        <div class="book-card__body"><div class="skeleton" style="height:14px;margin-bottom:6px"></div><div class="skeleton" style="height:10px;width:60%"></div></div>
+      </div>
+      <div class="book-card" style="pointer-events:none" aria-hidden="true">
+        <div class="book-card__cover-wrap"><div class="skeleton" style="position:absolute;inset:0"></div></div>
+        <div class="book-card__body"><div class="skeleton" style="height:14px;margin-bottom:6px"></div><div class="skeleton" style="height:10px;width:60%"></div></div>
+      </div>
+    </div>
+    <div class="load-more-wrap">
+      <button class="btn btn--secondary" id="loadMoreBtn" style="display:none">Load More Books</button>
+    </div>
+  </section>
+
+  <!-- Recently Added -->
+  <section class="section">
+    <div class="section__header">
+      <h2>🆕 Newly Added</h2>
+    </div>
+    <div class="book-grid" id="newGrid"></div>
+  </section>
+</main>
+
+<footer>
+  <div class="container">
+    <p>Books provided by <a href="https://www.gutenberg.org" target="_blank" rel="noopener">Project Gutenberg</a> &amp; <a href="https://openlibrary.org" target="_blank" rel="noopener">Open Library</a>. All texts are in the public domain.</p>
+  </div>
+</footer>
+
+<script type="module" src="js/home.js"></script>
+</body>
+</html>

@@ -1,0 +1,226 @@
+/* reader.css */
+
+/* Override body for full reading experience */
+body.reader-body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh; /* dynamic viewport height — accounts for mobile browser chrome */
+  overflow: hidden;
+}
+
+/* ── Reader toolbar ── */
+.reader-toolbar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: .5rem .875rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-shrink: 0;
+  box-shadow: var(--shadow);
+  z-index: 50;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.reader-toolbar::-webkit-scrollbar { display: none; }
+
+.reader-toolbar__title {
+  font-size: .85rem;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  flex-shrink: 0;
+}
+.toolbar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+/* Font size controls */
+.font-size-btn {
+  padding: .3rem .55rem;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: .85rem;
+  min-width: 40px;
+  min-height: 36px;
+  transition: background var(--transition);
+}
+.font-size-btn:hover { background: var(--border); }
+
+/* Theme circles */
+.theme-btn {
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  transition: border-color var(--transition), transform var(--transition);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.theme-btn:hover { transform: scale(1.1); }
+.theme-btn.active { border-color: var(--accent); }
+.theme-btn--light  { background: #f8fafc; border-color: #cbd5e1; }
+.theme-btn--sepia  { background: #f5ede0; }
+.theme-btn--dark   { background: #1e293b; }
+
+/* Font family toggle */
+.font-btn {
+  padding: .3rem .55rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: .82rem;
+  min-height: 36px;
+  transition: background var(--transition);
+}
+.font-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* On very small screens: hide less-essential toolbar items */
+@media (max-width: 480px) {
+  /* Hide the font-family toggle — sans is the default anyway */
+  #fontSans, #fontSerif { display: none; }
+  /* Hide the separator before font buttons */
+  .toolbar-sep:last-of-type { display: none; }
+  /* Make font size buttons a bit larger for fingers */
+  .font-size-btn { min-width: 44px; min-height: 40px; font-size: .9rem; }
+  /* Compress gap */
+  .reader-toolbar { gap: .35rem; padding: .4rem .75rem; }
+}
+
+/* ── Progress bar ── */
+.progress-bar {
+  height: 3px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.progress-bar__fill {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width .3s ease;
+}
+
+/* ── Reading area ── */
+.reader-scroll {
+  flex: 1;
+  overflow-y: auto;
+  /* -webkit-overflow-scrolling for smooth iOS scroll */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding: 0;
+}
+
+.reader-content {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 6rem;
+  font-size: var(--reader-font-size, 1.05rem);
+  line-height: 1.9;
+  font-family: var(--reader-font, var(--font-sans));
+  color: var(--text);
+}
+
+@media (min-width: 640px) {
+  .reader-content { padding: 3rem 2rem 6rem; font-size: var(--reader-font-size, 1.1rem); }
+}
+
+.reader-content p { margin-bottom: 1.25em; }
+.reader-content h1, .reader-content h2, .reader-content h3 {
+  margin: 2em 0 .75em;
+}
+.reader-content pre {
+  white-space: pre-wrap;
+  font-size: .9em;
+}
+
+/* Sepia: auto-switch to serif */
+[data-theme="sepia"] .reader-content { font-family: Georgia, var(--font-serif); }
+
+/* ── Chapter slide-in panel ── */
+.chapters-panel {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: min(320px, 85vw);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-100%);
+  transition: transform .3s ease;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+}
+.chapters-panel.open { transform: translateX(0); }
+.chapters-panel__header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.chapters-list {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  padding: .75rem;
+}
+.chapter-item {
+  display: block;
+  padding: .65rem .875rem;
+  border-radius: var(--radius-sm);
+  font-size: .9rem;
+  color: var(--text);
+  text-decoration: none;
+  transition: background var(--transition);
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  /* Good tap target size */
+  min-height: 44px;
+}
+.chapter-item:hover { background: var(--surface-2); }
+.chapter-item.active { background: var(--accent); color: #fff; font-weight: 600; }
+
+/* Backdrop */
+.chapters-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.45);
+  z-index: 199;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .3s ease;
+}
+.chapters-overlay.open { opacity: 1; pointer-events: all; }
+
+/* ── Loading ── */
+.reader-loading {
+  text-align: center;
+  padding: 4rem 1rem;
+}
+.reader-loading p { color: var(--text-muted); margin-top: 1rem; font-size: .9rem; }
+
+/* ── Fullscreen ── */
+:fullscreen .reader-toolbar { padding-block: .4rem; }

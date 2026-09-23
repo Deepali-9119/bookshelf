@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Book — Bookshelf</title>
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://gutendex.com">
+  <link rel="preconnect" href="https://openlibrary.org">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/book.css">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('bs_theme')||'light'}catch(e){}</script>
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="container navbar__inner">
+    <a href="index.html" class="navbar__logo">
+      <img src="assets/logo.svg" alt="Bookshelf logo">
+      Bookshelf
+    </a>
+    <form class="navbar__search" id="navSearchForm">
+      <input type="search" id="navSearch" placeholder="Search books, authors…" autocomplete="off">
+      <button type="submit" class="btn btn--primary btn--sm">Search</button>
+    </form>
+    <div class="navbar__links">
+      <a href="browse.html">Browse</a>
+      <button class="theme-toggle" id="themeToggle">🌙 Dark</button>
+    </div>
+    <button class="navbar__hamburger" id="hamburger" aria-label="Open menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="navbar__drawer" id="navDrawer">
+    <form class="navbar__drawer-search" id="drawerSearchForm">
+      <input type="search" id="drawerSearch" placeholder="Search books, authors…" autocomplete="off">
+      <button type="submit" class="btn btn--primary">Search</button>
+    </form>
+    <div class="navbar__drawer-links">
+      <a href="browse.html">📚 Browse</a>
+      <button class="theme-toggle" id="drawerTheme">🌙 Dark</button>
+    </div>
+  </div>
+</nav>
+
+<main class="container">
+  <div id="bookContent">
+    <div class="loading-state"><div class="spinner"></div></div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">
+    <p>Books provided by <a href="https://www.gutenberg.org" target="_blank" rel="noopener">Project Gutenberg</a> &amp; <a href="https://openlibrary.org" target="_blank" rel="noopener">Open Library</a>. All texts are in the public domain.</p>
+  </div>
+</footer>
+
+<script type="module" src="js/book.js"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page Not Found — Bookshelf</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem('bs_theme')||'light'}catch(e){}</script>
+  <style>
+    .not-found {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 60vh; text-align: center; padding: 2rem 1.25rem; gap: 1rem;
+    }
+    .not-found__emoji { font-size: 5rem; line-height: 1; }
+    .not-found__title { font-size: clamp(1.5rem,4vw,2.5rem); }
+    .not-found__sub   { color: var(--text-muted); max-width: 400px; }
+    .not-found__links { display: flex; gap: .75rem; flex-wrap: wrap; justify-content: center; margin-top: .5rem; }
+  </style>
+</head>
+<body>
+<nav class="navbar">
+  <div class="container navbar__inner">
+    <a href="index.html" class="navbar__logo">
+      <img src="assets/logo.svg" alt="Bookshelf logo"> Bookshelf
+    </a>
+  </div>
+</nav>
+<main class="container">
+  <div class="not-found">
+    <div class="not-found__emoji">📚</div>
+    <h1 class="not-found__title">Page Not Found</h1>
+    <p class="not-found__sub">Looks like this page got lost in the stacks. Try going back home or searching for a book.</p>
+    <div class="not-found__links">
+      <a href="index.html" class="btn btn--primary">🏠 Go Home</a>
+      <a href="browse.html" class="btn btn--secondary">📚 Browse Books</a>
+    </div>
+  </div>
+</main>
+<footer><div class="container"><p>Books provided by <a href="https://www.gutenberg.org" target="_blank" rel="noopener">Project Gutenberg</a> &amp; <a href="https://openlibrary.org" target="_blank" rel="noopener">Open Library</a>.</p></div></footer>
+</body>
+</html>

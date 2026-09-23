@@ -1,0 +1,125 @@
+/* book.css */
+
+/* ── Book detail layout ── */
+.book-detail {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.75rem;
+  padding: 1.75rem 0;
+  align-items: start;
+}
+
+@media (min-width: 600px) {
+  .book-detail {
+    grid-template-columns: 220px 1fr;
+    gap: 2.5rem;
+    padding: 2.5rem 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .book-detail {
+    grid-template-columns: 280px 1fr;
+    gap: 3rem;
+    padding: 3rem 0;
+  }
+}
+
+/* ── Cover ── */
+.book-cover-wrap {
+  /* On mobile: limit cover height so it doesn't take the whole screen */
+  max-width: 220px;
+  margin: 0 auto;
+}
+
+@media (min-width: 600px) {
+  .book-cover-wrap {
+    max-width: 100%;
+    position: sticky;
+    top: 80px;
+  }
+}
+
+.book-cover {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+.cover-skeleton {
+  width: 100%;
+  aspect-ratio: 2/3;
+  border-radius: var(--radius);
+}
+
+/* ── Info ── */
+.book-info__title {
+  margin-bottom: .5rem;
+  font-size: clamp(1.3rem, 4vw, 2rem);
+}
+.book-info__author {
+  font-size: 1rem;
+  color: var(--text-muted);
+  margin-bottom: 1rem;
+}
+.book-info__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: 1.25rem;
+}
+.book-info__desc {
+  color: var(--text-muted);
+  font-size: .95rem;
+  line-height: 1.75;
+  margin-bottom: 1.5rem;
+}
+.book-info__actions {
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+/* Full-width action buttons on tiny screens */
+@media (max-width: 400px) {
+  .book-info__actions { flex-direction: column; }
+  .book-info__actions .btn { justify-content: center; width: 100%; }
+}
+
+.book-info__subjects { margin-top: 1.5rem; }
+.book-info__subjects-title {
+  font-size: .78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  margin-bottom: .6rem;
+}
+.subjects-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+
+/* ── Formats ── */
+.formats-section { margin-top: 2rem; }
+.formats-section h3 { margin-bottom: .75rem; }
+.formats-list {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+.format-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .65rem .875rem;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  font-size: .875rem;
+  flex-wrap: wrap;
+}
+.format-item__name { color: var(--text-muted); }
