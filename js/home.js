@@ -81,54 +81,77 @@ let trendingPage   = 1;
 async function loadTrending(page = 1) {
   try {
     const data = await fetchBooks({ page, sort: 'popular' });
-    if (page === 1) trendingGrid.innerHTML = '';
+    if (page === 1 && trendingGrid) trendingGrid.innerHTML = '';
 
     const frag = document.createDocumentFragment();
     const results = data.results || [];
     for (let i = 0; i < results.length; i++) {
       frag.appendChild(buildCard(results[i], (page - 1) * 32 + i));
     }
-    trendingGrid.appendChild(frag);
+    if (trendingGrid) trendingGrid.appendChild(frag);
 
-    loadMoreBtn.style.display = data.next ? 'inline-flex' : 'none';
+    if (loadMoreBtn) {
+      loadMoreBtn.style.display = data.next ? 'inline-flex' : 'none';
+    }
 
     if (page === 1 && data.count) {
-      document.getElementById('heroStats').textContent =
-        `📚 ${data.count.toLocaleString()} books available — powered by Project Gutenberg & Open Library`;
+      const statsEl = document.getElementById('heroStats');
+      if (statsEl) {
+        statsEl.textContent =
+          `📚 ${data.count.toLocaleString()} books available — powered by Project Gutenberg & Open Library`;
+      }
     }
   } catch (err) {
-    if (page === 1) {
-      trendingGrid.innerHTML = `<p class="error-state">Could not load books. Please check your internet connection.<br><small>${escapeHtml(err.message)}</small></p>`;
+    if (page === 1 && trendingGrid) {
+      const msg = (err.message && err.message.toLowerCase().includes('aborted'))
+        ? 'Connection was interrupted. Please try again.'
+        : (err.message || 'Please check your internet connection.');
+      trendingGrid.innerHTML = `
+        <div class="error-state">
+          <p style="font-size:2rem;margin-bottom:.5rem">⚠️</p>
+          <p><strong>Could not load books.</strong></p>
+          <p><small>${escapeHtml(msg)}</small></p>
+          <button onclick="window.location.reload()" class="btn btn--secondary btn--sm" style="margin-top:1rem">↺ Try Again</button>
+        </div>`;
     }
   }
 }
 
-loadMoreBtn.addEventListener('click', async () => {
-  trendingPage++;
-  loadMoreBtn.disabled = true;
-  loadMoreBtn.textContent = 'Loading…';
-  await loadTrending(trendingPage);
-  loadMoreBtn.disabled = false;
-  loadMoreBtn.textContent = 'Load More Books';
-});
+if (loadMoreBtn) {
+  loadMoreBtn.addEventListener('click', async () => {
+    trendingPage++;
+    loadMoreBtn.disabled = true;
+    loadMoreBtn.textContent = 'Loading…';
+    await loadTrending(trendingPage);
+    loadMoreBtn.disabled = false;
+    loadMoreBtn.textContent = 'Load More Books';
+  });
+}
 
-// ── Newly Added ───────────────────────────────────────────────────────────────
+// ── Newly Added / More Discoveries ───────────────────────────────────────────
 const newGrid = document.getElementById('newGrid');
 async function loadNew() {
   try {
-    const data = await fetchBooks({ sort: 'ascending', page: 5 });
+    // Fetch second page for "More to Discover" without forcing unindexed database sort
+    const data = await fetchBooks({ page: 2, sort: 'popular' });
     const frag = document.createDocumentFragment();
     const items = (data.results || []).slice(0, 8);
     for (let i = 0; i < items.length; i++) {
       frag.appendChild(buildCard(items[i], i));
     }
-    newGrid.innerHTML = '';
-    newGrid.appendChild(frag);
+    if (newGrid) {
+      newGrid.innerHTML = '';
+      newGrid.appendChild(frag);
+    }
   } catch {
-    // Silently skip if newly added offset fails
+    // Silently skip if secondary row fails to load
   }
 }
 
-// Initial page load
-loadTrending(1);
-loadNew();
+// Initial page load: load primary trending books first, then secondary
+async function initHome() {
+  await loadTrending(1);
+  loadNew();
+}
+
+initHome();

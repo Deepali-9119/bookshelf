@@ -3,6 +3,14 @@
  * Solves public CORS proxy 403/rate-limit errors when reading books on Vercel.
  */
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   const targetUrl = req.query.url;
 
   if (!targetUrl) {

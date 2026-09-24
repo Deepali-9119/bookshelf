@@ -3,7 +3,7 @@
  * Optimized for instant rendering, high performance, and resilient fetch/abort lifecycle.
  */
 
-const GUTENDEX = 'https://gutendex.com/books';
+const GUTENDEX = 'https://gutendex.com/books/';
 
 const CACHE_PREFIX = 'bs_cache_';
 const COVER_CACHE_PREFIX = 'bs_cover_v2_';
@@ -41,7 +41,7 @@ function cacheSet(key, data) {
 }
 
 // ── Resilient Core Fetch with External Signal & Timeout ───────────────────────
-async function fetchJSON(url, { signal = null, timeoutMs = 35000 } = {}) {
+async function fetchJSON(url, { signal = null, timeoutMs = 30000 } = {}) {
   const cached = cacheGet(url);
   if (cached) return cached;
 
@@ -76,8 +76,8 @@ async function fetchJSON(url, { signal = null, timeoutMs = 35000 } = {}) {
   } catch (err) {
     clearTimeout(timer);
 
-    // If caller explicitly aborted this request (e.g. user selected another genre)
-    if (signal?.aborted) {
+    // If caller explicitly aborted this request or browser reported abort
+    if (signal?.aborted || (err.name === 'AbortError' && !timedOut) || (err.message && err.message.toLowerCase().includes('aborted') && !timedOut)) {
       throw new DOMException('Aborted', 'AbortError');
     }
 
@@ -116,15 +116,17 @@ export async function fetchBooks({ page = 1, search = '', topic = '', sort = 'po
   const url = `${GUTENDEX}?${p}`;
 
   try {
-    return await fetchJSON(url, { signal, timeoutMs: (topic && !search) ? 8000 : 25000 });
+    // For topic queries, use a 6s timeout so we can gracefully fall back to search if Gutendex's topic SQL is slow
+    const timeoutMs = (topic && !search) ? 6000 : 25000;
+    return await fetchJSON(url, { signal, timeoutMs });
   } catch (err) {
-    // If request was aborted/cancelled by user navigation, re-throw as AbortError
+    // If request was aborted/cancelled by user navigation, re-throw as AbortError immediately
     if (signal?.aborted || err.name === 'AbortError') {
       throw err;
     }
 
     // Fallback strategy: if Gutendex topic query times out or fails on server side,
-    // fallback to searching by keyword which uses Gutendex's indexed search engine
+    // fallback to searching by keyword which uses Gutendex's fast indexed search engine
     if (topic && !search) {
       const fallbackParams = new URLSearchParams({ page, search: topic });
       if (sort && sort !== 'popular') fallbackParams.set('sort', sort);
@@ -136,7 +138,7 @@ export async function fetchBooks({ page = 1, search = '', topic = '', sort = 'po
 }
 
 export async function fetchBook(id, { signal = null } = {}) {
-  return fetchJSON(`${GUTENDEX}/${id}`, { signal, timeoutMs: 25000 });
+  return fetchJSON(`${GUTENDEX}${id}/`, { signal, timeoutMs: 25000 });
 }
 
 // ── High-Performance Cover Resolution ─────────────────────────────────────────
@@ -201,6 +203,17 @@ export function getReadableUrl(formats = {}) {
     formats['text/plain']                    ||
     null
   );
+}
+
+export function getAllReadableUrls(formats = {}) {
+  const candidates = [
+    formats['text/html'],
+    formats['text/html; charset=utf-8'],
+    formats['text/plain; charset=utf-8'],
+    formats['text/plain; charset=us-ascii'],
+    formats['text/plain']
+  ].filter(Boolean);
+  return [...new Set(candidates)];
 }
 
 export function getDownloadUrl(formats = {}) {

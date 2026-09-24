@@ -278,12 +278,18 @@ async function loadBooks() {
     renderPagination(data);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (err) {
-    // CRITICAL: Silently ignore if request was intentionally aborted due to genre switching
-    if (err.name === 'AbortError' || controller.signal.aborted || requestId !== currentRequestId) {
+    // CRITICAL: Silently ignore if request was cancelled due to user navigation or genre switching
+    const isAborted =
+      err.name === 'AbortError' ||
+      controller.signal.aborted ||
+      requestId !== currentRequestId ||
+      (err.message && err.message.toLowerCase().includes('aborted'));
+
+    if (isAborted) {
       return;
     }
 
-    // Only display error for the CURRENT genuine failure
+    // Only display error for the CURRENT active failure
     if (browseGrid && requestId === currentRequestId) {
       if (resultsCount) resultsCount.textContent = 'Error';
       browseGrid.innerHTML = `

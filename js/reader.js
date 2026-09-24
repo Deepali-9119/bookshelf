@@ -4,7 +4,7 @@
  * with chapter navigation, theming, font controls, fullscreen,
  * and localStorage-based reading progress.
  */
-import { fetchBook, getReadableUrl } from './api.js';
+import { fetchBook, getReadableUrl, getAllReadableUrls } from './api.js';
 
 // ── Storage ───────────────────────────────────────────────────────────────────
 const LS = {
@@ -199,23 +199,33 @@ function stripGutenbergBoilerplate(text) {
 }
 
 async function fetchBookTextWithFallback(targetUrl) {
+  // Ensure Gutenberg URLs are https to prevent browser mixed-content blocks
+  const secureUrl = targetUrl.replace(/^http:\/\//i, 'https://');
+
   const endpoints = [
-    `/api/read?url=${encodeURIComponent(targetUrl)}`,
-    `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-    `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-    targetUrl
+    `/api/read?url=${encodeURIComponent(secureUrl)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(secureUrl)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(secureUrl)}`,
+    secureUrl
   ];
 
   let lastError = null;
   for (const endpoint of endpoints) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
+      const timeoutId = setTimeout(() => controller.abort(), 9000);
       const res = await fetch(endpoint, { signal: controller.signal });
       clearTimeout(timeoutId);
+
       if (res.ok) {
-        return await res.text();
+        const text = await res.text();
+        // If local static server served the api/read.js source code, bypass it
+        if (endpoint.startsWith('/api/read') && (text.includes('export default async function handler') || text.includes('Target domain not permitted'))) {
+          continue;
+        }
+        if (text && text.trim().length > 50) {
+          return text;
+        }
       }
       lastError = new Error(`HTTP ${res.status}`);
     } catch (e) {
@@ -231,25 +241,49 @@ const readerLoading = document.getElementById('readerLoading');
 const toolbarTitle  = document.getElementById('toolbarTitle');
 
 if (!bookId) {
-  readerLoading.innerHTML = '<p class="error-state">No book ID. <a href="index.html">← Go home</a></p>';
+  readerLoading.innerHTML = '<p class="error-state">No book ID provided. <a href="index.html">← Go home</a></p>';
 } else {
   loadReader(bookId);
 }
 
 async function loadReader(id) {
+  let book = null;
+  let candidates = [];
   try {
-    const book = await fetchBook(id);
-    document.title    = `${book.title} — Reading — Bookshelf`;
+    book = await fetchBook(id);
+    document.title = `${book.title} — Reading — Bookshelf`;
     toolbarTitle.textContent = book.title;
 
-    const readUrl = getReadableUrl(book.formats);
-    if (!readUrl) throw new Error('No readable format available for this book.');
+    candidates = getAllReadableUrls(book.formats);
+    if (!candidates.length) {
+      throw new Error('No readable format available for this book.');
+    }
 
-    const isHTML = book.formats['text/html'] === readUrl || readUrl.includes('.htm');
-    const rawText = await fetchBookTextWithFallback(readUrl);
+    let loadedContent = null;
+    let successfulUrl = null;
+    let isHTML = false;
+
+    // Try candidate formats in sequence (e.g. HTML first, plain-text fallback)
+    for (const url of candidates) {
+      try {
+        const text = await fetchBookTextWithFallback(url);
+        if (text && text.trim().length > 50) {
+          loadedContent = text;
+          successfulUrl = url;
+          isHTML = url.includes('.htm') || book.formats['text/html'] === url;
+          break;
+        }
+      } catch {
+        // Continue to next available format
+      }
+    }
+
+    if (!loadedContent) {
+      throw new Error('Could not load readable text across all available formats and proxies.');
+    }
 
     if (isHTML) {
-      const doc = new DOMParser().parseFromString(rawText, 'text/html');
+      const doc = new DOMParser().parseFromString(loadedContent, 'text/html');
       doc.querySelectorAll('script, style, link, meta').forEach(el => el.remove());
       readerContent.innerHTML = doc.body?.innerHTML ?? '';
       // Try to extract chapter headings from injected HTML
@@ -261,8 +295,8 @@ async function loadReader(id) {
         });
       buildChapterList(headings);
     } else {
-      const text     = await res.text();
-      const stripped = stripGutenbergBoilerplate(text);
+      // Plain text formatting with boilerplate cleanup
+      const stripped = stripGutenbergBoilerplate(loadedContent);
       readerContent.innerHTML = plainTextToHTML(stripped);
       buildChapterList(parseChapters(stripped));
     }
@@ -277,14 +311,16 @@ async function loadReader(id) {
     }
 
   } catch (err) {
+    const fallbackLink = candidates[0] || (book && getReadableUrl(book.formats));
     readerLoading.innerHTML = `
       <div class="error-state">
-        <p style="font-size:2rem;margin-bottom:.5rem">😔</p>
-        <p><strong>Could not load this book's content.</strong></p>
-        <p><small>${escapeHtml(err.message)}</small></p>
+        <p style="font-size:2.5rem;margin-bottom:.5rem">📖</p>
+        <p><strong>Could not load reading content directly.</strong></p>
+        <p style="max-width:480px;margin:0 auto .75rem"><small>${escapeHtml(err.message)}</small></p>
         <div style="margin-top:1.5rem;display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
           <button onclick="location.reload()" class="btn btn--primary btn--sm">↺ Try Again</button>
-          <a href="book.html?id=${id}" class="btn btn--secondary btn--sm">← Back to book info</a>
+          ${fallbackLink ? `<a href="${escapeHtml(fallbackLink)}" target="_blank" rel="noopener" class="btn btn--secondary btn--sm">Open Source Book ↗</a>` : ''}
+          <a href="book.html?id=${id}" class="btn btn--secondary btn--sm">← Book Details</a>
         </div>
       </div>`;
   }
