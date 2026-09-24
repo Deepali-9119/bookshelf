@@ -3,7 +3,8 @@
  * Optimized for instant rendering, high performance, and resilient fetch/abort lifecycle.
  */
 
-const GUTENDEX = 'https://gutendex.com/books/';
+const GUTENDEX_PROXIED = '/api/books';
+const GUTENDEX_DIRECT  = 'https://gutendex.com/books/';
 
 const CACHE_PREFIX = 'bs_cache_';
 const COVER_CACHE_PREFIX = 'bs_cover_v2_';
@@ -113,32 +114,61 @@ export async function fetchBooks({ page = 1, search = '', topic = '', sort = 'po
   if (topic)  p.set('topic',  topic);
   if (sort && sort !== 'popular') p.set('sort', sort);
 
-  const url = `${GUTENDEX}?${p}`;
+  const queryStr = p.toString();
+  // Try same-origin /api/books proxy first (bypasses browser CORS & Cloudflare bot blocks), then direct
+  const endpoints = [
+    `${GUTENDEX_PROXIED}?${queryStr}`,
+    `${GUTENDEX_DIRECT}?${queryStr}`
+  ];
 
-  try {
-    // For topic queries, use a 6s timeout so we can gracefully fall back to search if Gutendex's topic SQL is slow
-    const timeoutMs = (topic && !search) ? 6000 : 25000;
-    return await fetchJSON(url, { signal, timeoutMs });
-  } catch (err) {
-    // If request was aborted/cancelled by user navigation, re-throw as AbortError immediately
-    if (signal?.aborted || err.name === 'AbortError') {
-      throw err;
+  let lastErr = null;
+  for (const url of endpoints) {
+    try {
+      const timeoutMs = (topic && !search) ? 6000 : 25000;
+      return await fetchJSON(url, { signal, timeoutMs });
+    } catch (err) {
+      if (signal?.aborted || err.name === 'AbortError') throw err;
+      lastErr = err;
     }
-
-    // Fallback strategy: if Gutendex topic query times out or fails on server side,
-    // fallback to searching by keyword which uses Gutendex's fast indexed search engine
-    if (topic && !search) {
-      const fallbackParams = new URLSearchParams({ page, search: topic });
-      if (sort && sort !== 'popular') fallbackParams.set('sort', sort);
-      return await fetchJSON(`${GUTENDEX}?${fallbackParams}`, { signal, timeoutMs: 25000 });
-    }
-
-    throw err;
   }
+
+  // Fallback strategy: if Gutendex topic query times out, fallback to searching by keyword
+  if (topic && !search) {
+    const fallbackParams = new URLSearchParams({ page, search: topic });
+    if (sort && sort !== 'popular') fallbackParams.set('sort', sort);
+    const fallbackQuery = fallbackParams.toString();
+    const fallbackEndpoints = [
+      `${GUTENDEX_PROXIED}?${fallbackQuery}`,
+      `${GUTENDEX_DIRECT}?${fallbackQuery}`
+    ];
+    for (const url of fallbackEndpoints) {
+      try {
+        return await fetchJSON(url, { signal, timeoutMs: 25000 });
+      } catch (err) {
+        if (signal?.aborted || err.name === 'AbortError') throw err;
+        lastErr = err;
+      }
+    }
+  }
+
+  throw lastErr || new Error('Could not load books from catalog.');
 }
 
 export async function fetchBook(id, { signal = null } = {}) {
-  return fetchJSON(`${GUTENDEX}${id}/`, { signal, timeoutMs: 25000 });
+  const endpoints = [
+    `${GUTENDEX_PROXIED}/${id}/`,
+    `${GUTENDEX_DIRECT}${id}/`
+  ];
+  let lastErr = null;
+  for (const url of endpoints) {
+    try {
+      return await fetchJSON(url, { signal, timeoutMs: 25000 });
+    } catch (err) {
+      if (signal?.aborted || err.name === 'AbortError') throw err;
+      lastErr = err;
+    }
+  }
+  throw lastErr || new Error(`Could not load book #${id}`);
 }
 
 // ── High-Performance Cover Resolution ─────────────────────────────────────────
@@ -205,14 +235,19 @@ export function getReadableUrl(formats = {}) {
   );
 }
 
-export function getAllReadableUrls(formats = {}) {
-  const candidates = [
-    formats['text/html'],
-    formats['text/html; charset=utf-8'],
-    formats['text/plain; charset=utf-8'],
-    formats['text/plain; charset=us-ascii'],
-    formats['text/plain']
-  ].filter(Boolean);
+export function getAllReadableUrls(formats = {}, bookId = null) {
+  const candidates = [];
+
+  // Project Gutenberg's canonical CDN cache is fast (200ms) and guaranteed accessible
+  if (bookId && /^\d+$/.test(String(bookId))) {
+    candidates.push(`https://www.gutenberg.org/cache/epub/${bookId}/pg${bookId}.txt`);
+  }
+
+  if (formats['text/plain; charset=utf-8']) candidates.push(formats['text/plain; charset=utf-8']);
+  if (formats['text/html; charset=utf-8'])  candidates.push(formats['text/html; charset=utf-8']);
+  if (formats['text/html'])                 candidates.push(formats['text/html']);
+  if (formats['text/plain'])                candidates.push(formats['text/plain']);
+
   return [...new Set(candidates)];
 }
 

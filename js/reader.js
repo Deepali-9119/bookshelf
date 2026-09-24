@@ -254,7 +254,7 @@ async function loadReader(id) {
     document.title = `${book.title} — Reading — Bookshelf`;
     toolbarTitle.textContent = book.title;
 
-    candidates = getAllReadableUrls(book.formats);
+    candidates = getAllReadableUrls(book.formats, id);
     if (!candidates.length) {
       throw new Error('No readable format available for this book.');
     }

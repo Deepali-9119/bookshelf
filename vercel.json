@@ -1,4 +1,14 @@
 {
+  "rewrites": [
+    {
+      "source": "/api/books",
+      "destination": "https://gutendex.com/books/"
+    },
+    {
+      "source": "/api/books/:path*",
+      "destination": "https://gutendex.com/books/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/assets/(.*)",

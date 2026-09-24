@@ -132,26 +132,21 @@ if (loadMoreBtn) {
 const newGrid = document.getElementById('newGrid');
 async function loadNew() {
   try {
-    // Fetch second page for "More to Discover" without forcing unindexed database sort
     const data = await fetchBooks({ page: 2, sort: 'popular' });
     const frag = document.createDocumentFragment();
     const items = (data.results || []).slice(0, 8);
     for (let i = 0; i < items.length; i++) {
       frag.appendChild(buildCard(items[i], i));
     }
-    if (newGrid) {
+    if (newGrid && items.length) {
       newGrid.innerHTML = '';
       newGrid.appendChild(frag);
     }
   } catch {
-    // Silently skip if secondary row fails to load
+    // Keep skeleton or clean state if secondary row fails
   }
 }
 
-// Initial page load: load primary trending books first, then secondary
-async function initHome() {
-  await loadTrending(1);
-  loadNew();
-}
-
-initHome();
+// Initial page load: load both sections concurrently
+loadTrending(1);
+loadNew();
